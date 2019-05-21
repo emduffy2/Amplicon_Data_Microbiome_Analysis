@@ -1,0 +1,13 @@
+## Generate a phylogenetic tree 
+
+#Adjust ID lengths for clearcut command
+sed -i -e 's/>/>AAAAAAAAAA/g' usearch_outputs/otus2.align
+
+#Generate a phylip format distance matrix
+mothur "#dist.seqs(fasta=usearch_outputs/otus2.align, output=lt, processors=8)"
+
+#Generate a distance-based phylogenetic tree 
+mothur "#clearcut(phylip=usearch_outputs/otus2.phylip.dist)"
+
+#Adjust back ID lengths
+sed -i -e 's/AAAAAAAAAA//g' usearch_outputs/otus2.phylip.tre
