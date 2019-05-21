@@ -1,0 +1,44 @@
+#Assembles and quality filter contigs (remove sequences with ambiguous bases, incorrect length, or improper assemblly)
+#[UPARSE](http://www.drive5.com/uparse/) pipeline is used to generate an OTU table with OTUs clustered at 97% identity threshold.
+
+##Assemble Contigs
+
+#Default parameters
+mothur "#make.contigs(file=fileList.paired.txt, processors=8)"
+
+#Obtain summary of sequences quality
+mothur "#summary.seqs(fasta=fileList.paired.trim.contigs.fasta, processors=8)"
+
+#Filter out sequences with ambiguous bases and outside window length  (can change lengths to best fit your data)
+mothur "#screen.seqs(fasta=fileList.paired.trim.contigs.fasta, maxambig=0, minlength=245, maxlength=275, processors=8)"
+
+#Create new fasta files with a header line format compatible with the UPARSE pipeline
+python scripts/uparse_format.py -f fileList.paired.trim.contigs.good.fasta -g fileList.paired.contigs.groups
+
+
+##Generate the OTU table
+
+#Find set of unique sequences
+usearch7.0.10 -derep_fulllength contigs_for_uparse.fasta -sizeout -output usearch_outputs/derep.fa
+
+#Sort sequences by decreasing size annotation (cluster size) not including singletons
+usearch7.0.10 -sortbysize usearch_outputs/derep.fa -minsize 2 -output usearch_outputs/derep.sort.fa
+
+#Generate fasta file containing OTU representative sequences
+usearch7.0.10 -cluster_otus usearch_outputs/derep.sort.fa -otus usearch_outputs/otus1.fa
+
+#Decompress gold.fasta.gz
+gzip -d gold.fasta.gz
+
+#Chimera detection
+usearch7.0.10 -uchime_ref usearch_outputs/otus1.fa -db gold.fasta -strand plus -nonchimeras usearch_outputs/otus1.nonchimera.fa
+
+#Change header line format
+python scripts/uparse_python_scripts/fasta_number.py usearch_outputs/otus1.nonchimera.fa > usearch_outputs/otus2.fa
+
+#Map reads to OTUs at 97% identity threshold and generate UCLUST-format tabbed text
+usearch7.0.10 -usearch_global contigs_for_uparse.fasta -db usearch_outputs/otus2.fa -strand plus -id 0.97 -uc usearch_outputs/otu_map.uc
+
+#Generate OTU table
+mkdir otu_tables
+python scripts/uparse_python_scripts/uc2otutab.py usearch_outputs/otu_map.uc > otu_tables/otu_table.txt
